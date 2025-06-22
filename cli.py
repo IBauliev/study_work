@@ -54,7 +54,8 @@ class LogAnalyzer:
         )
         
         if not os.path.exists(log_path):
-            print(f"Ошибка: Файл логов не найден: {log_path}")
+            print(f"⛔ Ошибка: Файл логов не найден по пути: {log_path}")
+            print("Проверьте наличие файла и настройки в config.ini")
             return False
 
         with open(log_path, 'r', encoding='utf-8') as f:
@@ -64,8 +65,8 @@ class LogAnalyzer:
         cursor = conn.cursor()
         parsed_count = 0
 
-        print(f"\nПарсинг файла: {log_path}")
-        with tqdm(total=total_lines, desc="Прогресс", unit="line") as pbar:
+        print(f"\n🔍 Начат парсинг файла: {log_path}")
+        with tqdm(total=total_lines, desc="Прогресс", unit="стр") as pbar:
             with open(log_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     try:
@@ -78,14 +79,15 @@ class LogAnalyzer:
                             ''', parsed)
                             parsed_count += 1
                     except Exception as e:
-                        print(f"\nОшибка в строке: {e}", file=sys.stderr)
+                        print(f"\n⚠ Ошибка в строке: {e}", file=sys.stderr)
                     finally:
                         pbar.update(1)
-                        time.sleep(0.001)  
+                        time.sleep(0.001)
 
         conn.commit()
         conn.close()
-        print(f"\nГотово! Обработано строк: {parsed_count}/{total_lines}")
+        print(f"\n✅ Готово! Обработано строк: {parsed_count}/{total_lines}")
+        print(f"Данные сохранены в базу: {self.db_path}")
         return True
 
     def parse_line(self, line):
@@ -145,10 +147,10 @@ class LogAnalyzer:
         logs = cursor.fetchall()
 
         if not logs:
-            print("Логи не найдены")
+            print("\n🔍 Логов по указанным критериям не найдено")
             return
 
-        print("\nРезультаты:")
+        print("\n📋 Результаты поиска:")
         print("-" * 120)
         print(f"| {'IP':<15} | {'Дата':<20} | {'Метод':<6} | {'URL':<40} | {'Статус':<6} | {'Размер':<6} |")
         print("-" * 120)
@@ -157,21 +159,41 @@ class LogAnalyzer:
             print(f"| {log[1]:<15} | {log[2][:19]:<20} | {log[3]:<6} | {log[4][:40]:<40} | {log[5]:<6} | {log[6]:<6} |")
         
         print("-" * 120)
-        print(f"Всего найдено: {len(logs)}")
+        print(f"📊 Всего найдено записей: {len(logs)}")
         conn.close()
 
+def print_help():
+    """Вывод справки по командам"""
+    print("\n📌 Apache Log Analyzer - Анализатор логов веб-сервера")
+    print("Использование:")
+    print("  python cli.py parse       - Импорт логов из файла access.log в базу данных")
+    print("  python cli.py show        - Просмотр логов (первые 100 записей)")
+    print("\nДополнительные опции для show:")
+    print("  --ip IP_ADDRESS           - Фильтр по IP-адресу")
+    print("  --keyword SEARCH_TERM     - Поиск по ключевому слову в URL")
+    print("  --date-from YYYY-MM-DD    - Начальная дата периода")
+    print("  --date-to YYYY-MM-DD      - Конечная дата периода")
+    print("  --limit N                 - Количество записей (по умолчанию 100)")
+    print("\nПримеры:")
+    print("  python cli.py show --ip 192.168.1.1 --limit 50")
+    print("  python cli.py show --keyword admin --date-from 2024-01-01")
+
 def main():
-    parser = argparse.ArgumentParser(description='Apache Log Analyzer CLI')
+    if len(sys.argv) == 1:
+        print_help()
+        return
+
+    parser = argparse.ArgumentParser(description='Анализатор логов Apache', usage='python cli.py [parse|show] [опции]')
     subparsers = parser.add_subparsers(dest='command', required=True)
 
-    parse_parser = subparsers.add_parser('parse', help='Парсинг лог-файла')
+    parse_parser = subparsers.add_parser('parse', help='Импорт логов из файла в базу данных')
 
-    show_parser = subparsers.add_parser('show', help='Просмотр логов')
-    show_parser.add_argument('--ip', help='Фильтр по IP')
+    show_parser = subparsers.add_parser('show', help='Просмотр логов с фильтрацией')
+    show_parser.add_argument('--ip', help='Фильтр по IP-адресу')
     show_parser.add_argument('--keyword', help='Поиск по ключевому слову в URL')
-    show_parser.add_argument('--date-from', help='Фильтр по дате (с) YYYY-MM-DD')
-    show_parser.add_argument('--date-to', help='Фильтр по дате (по) YYYY-MM-DD')
-    show_parser.add_argument('--limit', type=int, default=100, help='Лимит записей')
+    show_parser.add_argument('--date-from', help='Начальная дата периода (YYYY-MM-DD)')
+    show_parser.add_argument('--date-to', help='Конечная дата периода (YYYY-MM-DD)')
+    show_parser.add_argument('--limit', type=int, default=100, help='Количество записей (по умолчанию 100)')
 
     args = parser.parse_args()
     analyzer = LogAnalyzer()
@@ -188,4 +210,5 @@ def main():
         })
 
 if __name__ == '__main__':
+    print("Инструмент для анализа логов веб-сервера")
     main()
